@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>LarbyBox Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --chassis: #2a2724;
+    --chassis-2: #221f1c;
+    --panel-line: #4a4540;
+    --rivet: #55504a;
+    --text-hi: #f3ede4;
+    --text-mid: #b8afa4;
+    --text-dim: #7c7469;
+    --amber: #e8a33d;
+    --amber-glow: rgba(232,163,61,0.35);
+    --teal: #6fc9b8;
+    --red: #e2574c;
+    --track: #1a1815;
+  }
+  *{ box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0;
+    background: radial-gradient(1200px 800px at 50% -10%, #33302b 0%, var(--chassis) 55%, var(--chassis-2) 100%);
+    color: var(--text-hi);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+  }
+  .mono{ font-family: 'IBM Plex Mono', monospace; }
+  .wrap{
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 28px 18px 60px;
+  }
+  .panel{
+    position: relative;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.15));
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    padding: 22px 22px 6px;
+  }
+  .rivet{
+    position:absolute; width:6px; height:6px; border-radius:50%;
+    background: radial-gradient(circle at 35% 35%, #7a736a, var(--rivet) 60%, #100f0d 100%);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .rivet.tl{ top:10px; left:10px; } .rivet.tr{ top:10px; right:10px; }
+  .rivet.bl{ bottom:10px; left:10px; } .rivet.br{ bottom:10px; right:10px; }
+
+  .nameplate{
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding-bottom: 14px; margin-bottom: 18px;
+    border-bottom: 1px solid var(--panel-line);
+  }
+  .nameplate h1{
+    font-size: 19px; letter-spacing: 0.04em; margin:0; font-weight:700;
+    display:flex; align-items:center; gap:9px;
+  }
+  .led{
+    width:9px; height:9px; border-radius:50%; flex:none;
+    background: #4a2c26; box-shadow: inset 0 0 2px rgba(0,0,0,0.6);
+    transition: background 0.4s, box-shadow 0.4s;
+  }
+  .led.scanning{ background: var(--amber); box-shadow: 0 0 8px 2px var(--amber-glow); animation: pulse 1.1s ease-in-out infinite; }
+  .led.on{ background: var(--teal); box-shadow: 0 0 7px 2px rgba(111,201,184,0.45); animation:none; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+  .fw{ font-size: 12px; color: var(--text-dim); text-align:right; }
+  .fw span{ color: var(--text-mid); }
+
+  .section{ padding: 4px 0 20px; border-bottom: 1px solid var(--panel-line); }
+  .section:last-of-type{ border-bottom:none; }
+  .section h2{
+    font-size: 11px; letter-spacing: 0.14em; color: var(--text-dim);
+    margin: 0 0 14px; font-weight: 600;
+  }
+
+  .connect-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  button{
+    font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13px;
+    color: var(--text-hi); background: #38342f; border:1px solid var(--panel-line);
+    border-radius: 4px; padding: 9px 16px; cursor:pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  button:hover:not(:disabled){ border-color: var(--amber); }
+  button:active:not(:disabled){ background:#2c2925; }
+  button:disabled{ opacity:0.4; cursor:not-allowed; }
+  button.primary{ background: var(--amber); color:#241c0e; border-color: var(--amber); }
+  button.primary:hover:not(:disabled){ filter: brightness(1.08); }
+  button.danger{ border-color:#5a3530; color:#f0b6ae; }
+  button.danger:hover:not(:disabled){ border-color: var(--red); }
+  button.small{ padding:6px 10px; font-size:11px; }
+
+  .status-msg{ font-size:12px; color: var(--text-dim); margin-top:10px; min-height:16px; }
+  .status-msg.err{ color: var(--red); }
+  .status-msg.ok{ color: var(--teal); }
+
+  .row{ display:flex; align-items:center; justify-content:space-between; gap:14px; margin: 12px 0; }
+  .row .label{ font-size: 13px; color: var(--text-mid); min-width: 96px; }
+  .readout{ font-size:13px; color: var(--text-hi); min-width: 64px; text-align:right; }
+
+  .meter{ flex:1; height:8px; background:var(--track); border-radius:4px; overflow:hidden; border:1px solid #100f0d; }
+  .meter > i{ display:block; height:100%; background: var(--teal); border-radius:4px 0 0 4px; transition: width 0.4s ease; }
+  .meter > i.warn{ background: var(--amber); }
+  .meter > i.crit{ background: var(--red); }
+
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; flex:1; height:20px; background:transparent; margin:0;
+  }
+  input[type=range]::-webkit-slider-runnable-track{
+    height:6px; border-radius:3px; background: var(--track); border:1px solid #100f0d;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:16px; height:16px; border-radius:50%; margin-top:-6px;
+    background: linear-gradient(180deg,#f2c26b,var(--amber)); border:1px solid #7a5a1c;
+    box-shadow: 0 0 0 3px rgba(232,163,61,0.12);
+    cursor:pointer;
+  }
+  input[type=range]::-moz-range-track{ height:6px; border-radius:3px; background: var(--track); border:1px solid #100f0d; }
+  input[type=range]::-moz-range-thumb{
+    width:14px; height:14px; border-radius:50%; background: var(--amber); border:1px solid #7a5a1c; cursor:pointer;
+  }
+  input[type=range]:disabled{ opacity:0.35; }
+
+  .tabs{ display:flex; gap:6px; margin-bottom:16px; }
+  .tab{
+    flex:1; text-align:center; padding:8px 6px; font-size:12px; border-radius:4px;
+    border:1px solid var(--panel-line); color:var(--text-mid); cursor:pointer; background:transparent;
+    font-family:'Space Grotesk',sans-serif; font-weight:500;
+  }
+  .tab.active{ border-color: var(--amber); color: var(--amber); background: rgba(232,163,61,0.08); }
+  .tab.live::after{ content:' •'; color: var(--teal); }
+
+  .radio-group{ display:flex; gap:6px; }
+  .radio-group button{ flex:1; padding:7px 4px; font-size:12px; }
+  .radio-group button.active{ border-color: var(--amber); color: var(--amber); background: rgba(232,163,61,0.08); }
+
+  .saved-pill{
+    font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--panel-line);
+    color: var(--text-dim);
+  }
+  .saved-pill.dirty{ color:var(--amber); border-color: rgba(232,163,61,0.4); }
+  .saved-pill.clean{ color:var(--teal); border-color: rgba(111,201,184,0.4); }
+
+  .actions{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+
+  .log-controls{ display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+  .log-controls .spacer{ flex:1; }
+  .log{
+    background: var(--track); border:1px solid #100f0d; border-radius:4px;
+    padding:10px 12px; max-height:220px; overflow-y:auto;
+    font-size:12px; line-height:1.6; color: var(--text-mid);
+  }
+  .log .entry{ white-space: pre-wrap; }
+  .log .t{ color: var(--text-dim); }
+  .log .empty{ color: var(--text-dim); font-style:normal; }
+
+  .footnote{ font-size:11px; color: var(--text-dim); line-height:1.6; margin-top:22px; padding: 0 4px; }
+  .footnote a{ color: var(--text-mid); }
+
+  @media (prefers-reduced-motion: reduce){
+    .led.scanning{ animation:none; }
+    .meter > i{ transition:none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="panel">
+    <div class="rivet tl"></div><div class="rivet tr"></div>
+    <div class="rivet bl"></div><div class="rivet br"></div>
+
+    <div class="nameplate">
+      <h1><span class="led" id="led"></span>LARBYBOX CONTROL</h1>
+      <div class="fw mono">FW <span id="fwVal">—</span> · up <span id="uptimeVal">—</span></div>
+    </div>
+
+    <div class="section">
+      <div class="connect-row">
+        <button class="primary" id="connectBtn">Connect via Bluetooth</button>
+        <button id="disconnectBtn" disabled>Disconnect</button>
+        <span class="saved-pill" id="savedPill">—</span>
+      </div>
+      <div class="status-msg" id="statusMsg">Not connected. Requires Chrome or Edge, on desktop or Android.</div>
+    </div>
+
+    <div class="section" id="powerSection" style="display:none;">
+      <h2>POWER</h2>
+      <div class="row">
+        <span class="label">Battery</span>
+        <div class="meter"><i id="mBatt" style="width:0%"></i></div>
+        <span class="readout mono" id="vBattVal">— V</span>
+      </div>
+      <div class="row">
+        <span class="label">PSU input</span>
+        <div class="meter"><i id="mPsu" style="width:0%"></i></div>
+        <span class="readout mono" id="vPsuVal">— V</span>
+      </div>
+      <div class="row">
+        <span class="label">Load rail</span>
+        <div class="meter"><i id="mLoad" style="width:0%"></i></div>
+        <span class="readout mono" id="vLoadVal">— V</span>
+      </div>
+      <div class="row" style="margin-top:2px;">
+        <span class="label">Source</span>
+        <span class="readout" id="onPsuVal" style="flex:1; text-align:left;">—</span>
+        <span class="readout" id="mutedVal">—</span>
+      </div>
+    </div>
+
+    <div class="section" id="playbackSection" style="display:none;">
+      <h2>PLAYBACK</h2>
+      <div class="row">
+        <span class="label">Volume</span>
+        <input type="range" id="volLive" min="0" max="115" disabled>
+        <span class="readout mono" id="volLiveVal">—</span>
+      </div>
+      <div class="row">
+        <span class="label">Active EQ</span>
+        <span class="readout" id="bassLiveVal" style="flex:1; text-align:left;">—</span>
+      </div>
+    </div>
+
+    <div class="section" id="eqSection" style="display:none;">
+      <h2>EQ PRESETS</h2>
+      <div class="tabs" id="eqTabs">
+        <button class="tab" data-lvl="0">Default</button>
+        <button class="tab" data-lvl="1">Bass Boost One</button>
+        <button class="tab" data-lvl="2">Bass Boost Two</button>
+      </div>
+      <div class="row">
+        <span class="label">Bass</span>
+        <input type="range" id="bassSlider" min="-20" max="24" step="0.5">
+        <span class="readout mono" id="bassSliderVal">— dB</span>
+      </div>
+      <div class="row">
+        <span class="label">Treble</span>
+        <input type="range" id="trebleSlider" min="-20" max="20" step="0.5">
+        <span class="readout mono" id="trebleSliderVal">— dB</span>
+      </div>
+    </div>
+
+    <div class="section" id="ceilingSection" style="display:none;">
+      <h2>VOLUME CEILINGS</h2>
+      <div class="row">
+        <span class="label">12V rail</span>
+        <input type="range" id="vol12Slider" min="0" max="115">
+        <span class="readout mono" id="vol12Val">—</span>
+      </div>
+      <div class="row">
+        <span class="label">24V rail</span>
+        <input type="range" id="vol24Slider" min="0" max="115">
+        <span class="readout mono" id="vol24Val">—</span>
+      </div>
+    </div>
+
+    <div class="section" id="startupSection" style="display:none;">
+      <h2>STARTUP DEFAULTS — applies now, and on next power-on</h2>
+      <div class="row">
+        <span class="label">Boot volume</span>
+        <input type="range" id="stVolSlider" min="0" max="115">
+        <span class="readout mono" id="stVolVal">—</span>
+      </div>
+      <div class="row">
+        <span class="label">Boot EQ preset</span>
+        <div class="radio-group" id="stBassGroup" style="flex:1;">
+          <button data-lvl="0">Default</button>
+          <button data-lvl="1">Boost 1</button>
+          <button data-lvl="2">Boost 2</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="primary" id="saveBtn">Save to flash</button>
+        <button class="danger" id="resetBtn">Factory reset</button>
+      </div>
+      <div class="status-msg" id="resetConfirm" style="display:none;">
+        Reset EQ and startup defaults to firmware values? Volume ceilings are kept.
+        <div class="actions" style="margin-top:8px;">
+          <button class="danger small" id="resetConfirmYes">Yes, reset</button>
+          <button class="small" id="resetConfirmNo">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="logSection" style="display:none;">
+      <h2>EVENT LOG</h2>
+      <div class="log-controls">
+        <span class="label" style="min-width:auto;">Show last</span>
+        <button class="small" data-n="5">5</button>
+        <button class="small" data-n="10">10</button>
+        <button class="small" data-n="20">20</button>
+        <span class="spacer"></span>
+        <button class="small" id="logRefreshBtn">Refresh</button>
+      </div>
+      <div class="log mono" id="logView"><span class="empty">No entries loaded yet.</span></div>
+    </div>
+
+  </div>
+
+  <div class="footnote">
+    Talks to the always-on BLE service on LarbyBox-Control firmware v1.1+ (service <span class="mono">6e400001…</span>).
+    Web Bluetooth needs a secure context — this page works over <span class="mono">https://</span> or
+    <span class="mono">http://localhost</span>, but not a plain double-clicked file. On a phone, use Chrome for Android;
+    Safari/iOS doesn't support Web Bluetooth at all.
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+  const CONTROL_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+  const STATE_UUID   = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+  const LOG_UUID     = "6e400004-b5a3-f393-e0a9-e50e24dcca9e";
+
+  const BASS_NAMES = ["Default", "Bass Boost One", "Bass Boost Two"];
+  const WRITE_THROTTLE_MS = 130;
+
+  let device = null, server = null, controlChar = null, stateChar = null, logChar = null;
+  let latestState = null;
+  let activeEqTab = 1; // which preset's sliders are currently shown
+  let dragging = { bass:false, treble:false, vol12:false, vol24:false, stvol:false };
+  let lastWrite = { bass:0, treble:0, vol12:0, vol24:0, stvol:0 };
+  let logBatch = { total:0, entries:[] };
+
+  const $ = (id) => document.getElementById(id);
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+
+  function setStatus(msg, kind){
+    const el = $("statusMsg");
+    el.textContent = msg;
+    el.className = "status-msg" + (kind ? " " + kind : "");
+  }
+
+  function setLed(mode){
+    const led = $("led");
+    led.className = "led" + (mode ? " " + mode : "");
+  }
+
+  function setSectionsVisible(v){
+    ["powerSection","playbackSection","eqSection","ceilingSection","startupSection","logSection"]
+      .forEach(id => $(id).style.display = v ? "" : "none");
+  }
+
+  function meterClass(kind, value){
+    if (kind === "batt"){
+      if (value < 11.0) return "crit";
+      if (value < 11.7) return "warn";
+      return "";
+    }
+    return ""; // PSU/load: informational only, no thresholds
+  }
+
+  async function connect(){
+    if (!navigator.bluetooth){
+      setStatus("This browser has no Web Bluetooth support. Use Chrome or Edge (desktop or Android).", "err");
+      return;
+    }
+    try{
+      setLed("scanning");
+      setStatus("Choose LarbyBox-Control in the browser's device picker…");
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [SERVICE_UUID] }]
+      });
+      device.addEventListener("gattserverdisconnected", onDisconnected);
+
+      setStatus("Connecting…");
+      server = await device.gatt.connect();
+      const service = await server.getPrimaryService(SERVICE_UUID);
+      controlChar = await service.getCharacteristic(CONTROL_UUID);
+      stateChar = await service.getCharacteristic(STATE_UUID);
+      logChar = await service.getCharacteristic(LOG_UUID);
+
+      await stateChar.startNotifications();
+      stateChar.addEventListener("characteristicvaluechanged", onStateNotify);
+      await logChar.startNotifications();
+      logChar.addEventListener("characteristicvaluechanged", onLogNotify);
+
+      // Prime with an initial read in case the first notify is delayed.
+      const initial = await stateChar.readValue();
+      handleStateJson(dec.decode(initial));
+
+      setLed("on");
+      setStatus("Connected to " + (device.name || "LarbyBox-Control") + ".", "ok");
+      setSectionsVisible(true);
+      $("connectBtn").disabled = true;
+      $("disconnectBtn").disabled = false;
+    } catch(err){
+      setLed(null);
+      if (err && err.name === "NotFoundError"){
+        setStatus("No device selected.", "err");
+      } else {
+        setStatus("Connection failed: " + (err && err.message ? err.message : err), "err");
+      }
+    }
+  }
+
+  function onDisconnected(){
+    setLed(null);
+    setStatus("Disconnected.");
+    setSectionsVisible(false);
+    $("connectBtn").disabled = false;
+    $("disconnectBtn").disabled = true;
+    latestState = null;
+  }
+
+  async function disconnect(){
+    if (device && device.gatt && device.gatt.connected){
+      device.gatt.disconnect();
+    } else {
+      onDisconnected();
+    }
+  }
+
+  function onStateNotify(e){
+    handleStateJson(dec.decode(e.target.value));
+  }
+
+  function handleStateJson(text){
+    let s;
+    try{ s = JSON.parse(text); } catch(e){ return; }
+    latestState = s;
+    renderState(s);
+  }
+
+  function fmtUptime(sec){
+    sec = sec|0;
+    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), ss = sec%60;
+    if (h > 0) return h + "h " + m + "m";
+    if (m > 0) return m + "m " + ss + "s";
+    return ss + "s";
+  }
+
+  function renderState(s){
+    $("fwVal").textContent = s.fw || "—";
+    $("uptimeVal").textContent = fmtUptime(s.uptime || 0);
+
+    const pill = $("savedPill");
+    if (s.saved === 1){ pill.textContent = "saved"; pill.className = "saved-pill clean"; }
+    else { pill.textContent = "unsaved changes"; pill.className = "saved-pill dirty"; }
+
+    // Power
+    const setMeter = (idPrefix, val, found) => {
+      const bar = $("m" + idPrefix), label = $("v" + idPrefix + "Val");
+      if (!found || val < 0){ bar.style.width = "0%"; bar.className = ""; label.textContent = "n/a"; return; }
+      const pct = Math.max(0, Math.min(100, (val / 26) * 100));
+      bar.style.width = pct + "%";
+      bar.className = idPrefix === "Batt" ? meterClass("batt", val) : "";
+      label.textContent = val.toFixed(2) + " V";
+    };
+    setMeter("Batt", s.vBatt, s.vBatt !== -1);
+    setMeter("Psu",  s.vPsu,  s.vPsu  !== -1);
+    setMeter("Load", s.vLoad, s.vLoad !== -1);
+    $("onPsuVal").textContent = s.onPsu ? "On PSU power" : "On battery";
+    $("mutedVal").textContent = s.muted ? "MUTED (low battery)" : "Not muted";
+    $("mutedVal").style.color = s.muted ? "var(--red)" : "var(--text-dim)";
+
+    // Playback
+    if (!dragging.volLive){
+      $("volLive").value = s.vol;
+      $("volLive").max = 115;
+    }
+    $("volLiveVal").textContent = s.vol + " / 115";
+    $("bassLiveVal").textContent = BASS_NAMES[s.bass] || ("Level " + s.bass);
+
+    // EQ sliders for the active tab, unless the person is mid-drag
+    const bKey = ["b0b","b1b","b2b"][activeEqTab], tKey = ["b0t","b1t","b2t"][activeEqTab];
+    if (!dragging.bass){ $("bassSlider").value = s[bKey]; $("bassSliderVal").textContent = s[bKey].toFixed(1) + " dB"; }
+    if (!dragging.treble){ $("trebleSlider").value = s[tKey]; $("trebleSliderVal").textContent = s[tKey].toFixed(1) + " dB"; }
+
+    // Ceilings
+    if (!dragging.vol12){ $("vol12Slider").value = s.vol12; $("vol12Val").textContent = s.vol12; }
+    if (!dragging.vol24){ $("vol24Slider").value = s.vol24; $("vol24Val").textContent = s.vol24; }
+
+    // Startup defaults
+    if (!dragging.stvol){ $("stVolSlider").value = s.stVol; $("stVolVal").textContent = s.stVol; }
+    document.querySelectorAll("#stBassGroup button").forEach(b=>{
+      b.classList.toggle("active", Number(b.dataset.lvl) === s.stBass);
+    });
+  }
+
+  async function sendCommand(cmd){
+    if (!controlChar) return;
+    try{
+      await controlChar.writeValueWithoutResponse(enc.encode(cmd));
+    } catch(err){
+      setStatus("Write failed: " + (err && err.message ? err.message : err), "err");
+    }
+  }
+
+  function throttled(key, fn, ms){
+    const now = performance.now();
+    if (now - lastWrite[key] < (ms || WRITE_THROTTLE_MS)) return;
+    lastWrite[key] = now;
+    fn();
+  }
+
+  // ---- EQ tab + sliders ----
+  function selectEqTab(lvl){
+    activeEqTab = lvl;
+    document.querySelectorAll("#eqTabs .tab").forEach(t=>{
+      t.classList.toggle("active", Number(t.dataset.lvl) === lvl);
+    });
+    if (latestState){
+      const bKey = ["b0b","b1b","b2b"][lvl], tKey = ["b0t","b1t","b2t"][lvl];
+      $("bassSlider").value = latestState[bKey];
+      $("bassSliderVal").textContent = latestState[bKey].toFixed(1) + " dB";
+      $("trebleSlider").value = latestState[tKey];
+      $("trebleSliderVal").textContent = latestState[tKey].toFixed(1) + " dB";
+    }
+  }
+
+  $("eqTabs").addEventListener("click", (e)=>{
+    const btn = e.target.closest(".tab");
+    if (btn) selectEqTab(Number(btn.dataset.lvl));
+  });
+
+  $("bassSlider").addEventListener("input", ()=>{
+    dragging.bass = true;
+    const v = parseFloat($("bassSlider").value);
+    $("bassSliderVal").textContent = v.toFixed(1) + " dB";
+    throttled("bass", ()=> sendCommand(["b0b","b1b","b2b"][activeEqTab] + "=" + v));
+  });
+  $("bassSlider").addEventListener("change", ()=>{
+    dragging.bass = false;
+    sendCommand(["b0b","b1b","b2b"][activeEqTab] + "=" + $("bassSlider").value);
+  });
+
+  $("trebleSlider").addEventListener("input", ()=>{
+    dragging.treble = true;
+    const v = parseFloat($("trebleSlider").value);
+    $("trebleSliderVal").textContent = v.toFixed(1) + " dB";
+    throttled("treble", ()=> sendCommand(["b0t","b1t","b2t"][activeEqTab] + "=" + v));
+  });
+  $("trebleSlider").addEventListener("change", ()=>{
+    dragging.treble = false;
+    sendCommand(["b0t","b1t","b2t"][activeEqTab] + "=" + $("trebleSlider").value);
+  });
+
+  // ---- Volume ceilings ----
+  $("vol12Slider").addEventListener("input", ()=>{
+    dragging.vol12 = true;
+    $("vol12Val").textContent = $("vol12Slider").value;
+    throttled("vol12", ()=> sendCommand("vol12=" + $("vol12Slider").value));
+  });
+  $("vol12Slider").addEventListener("change", ()=>{
+    dragging.vol12 = false;
+    sendCommand("vol12=" + $("vol12Slider").value);
+  });
+  $("vol24Slider").addEventListener("input", ()=>{
+    dragging.vol24 = true;
+    $("vol24Val").textContent = $("vol24Slider").value;
+    throttled("vol24", ()=> sendCommand("vol24=" + $("vol24Slider").value));
+  });
+  $("vol24Slider").addEventListener("change", ()=>{
+    dragging.vol24 = false;
+    sendCommand("vol24=" + $("vol24Slider").value);
+  });
+
+  // ---- Startup defaults ----
+  $("stVolSlider").addEventListener("input", ()=>{
+    dragging.stvol = true;
+    $("stVolVal").textContent = $("stVolSlider").value;
+    throttled("stvol", ()=> sendCommand("stvol=" + $("stVolSlider").value));
+  });
+  $("stVolSlider").addEventListener("change", ()=>{
+    dragging.stvol = false;
+    sendCommand("stvol=" + $("stVolSlider").value);
+  });
+  $("stBassGroup").addEventListener("click", (e)=>{
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    sendCommand("stbass=" + btn.dataset.lvl);
+  });
+
+  $("saveBtn").addEventListener("click", ()=> sendCommand("save=1"));
+
+  $("resetBtn").addEventListener("click", ()=>{ $("resetConfirm").style.display = ""; });
+  $("resetConfirmNo").addEventListener("click", ()=>{ $("resetConfirm").style.display = "none"; });
+  $("resetConfirmYes").addEventListener("click", ()=>{
+    $("resetConfirm").style.display = "none";
+    sendCommand("reset=1");
+    setStatus("Factory reset sent — EQ and startup defaults restored, ceilings kept.", "ok");
+  });
+
+  // ---- Event log ----
+  function onLogNotify(e){
+    let entry;
+    try{ entry = JSON.parse(dec.decode(e.target.value)); } catch(err){ return; }
+    if (entry.total === 0){ renderLogEmpty(); return; }
+    if (entry.seq === 0) logBatch = { total: entry.total, entries: [] };
+    logBatch.entries[entry.seq] = entry;
+    if (entry.done){ renderLog(logBatch.entries); }
+  }
+
+  function renderLogEmpty(){
+    $("logView").innerHTML = '<span class="empty">No events recorded yet.</span>';
+  }
+
+  function renderLog(entries){
+    const view = $("logView");
+    view.innerHTML = "";
+    entries.filter(Boolean).slice().reverse().forEach(en=>{
+      const div = document.createElement("div");
+      div.className = "entry";
+      const mins = Math.floor(en.t/60000), secs = Math.floor((en.t%60000)/1000);
+      div.innerHTML = '<span class="t">boot ' + en.boot + ' · ' + mins + 'm' + String(secs).padStart(2,'0') + 's</span> — ' +
+        escapeHtml(en.msg);
+      view.appendChild(div);
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+
+  document.querySelectorAll("[data-n]").forEach(btn=>{
+    btn.addEventListener("click", ()=> sendCommand("logreq=" + btn.dataset.n));
+  });
+  $("logRefreshBtn").addEventListener("click", ()=> sendCommand("logreq=10"));
+
+  $("connectBtn").addEventListener("click", connect);
+  $("disconnectBtn").addEventListener("click", disconnect);
+
+  selectEqTab(1); // Bass Boost One is the firmware's own startup default
+})();
+</script>
+</body>
+</html>
