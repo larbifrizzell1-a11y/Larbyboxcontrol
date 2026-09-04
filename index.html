@@ -248,10 +248,26 @@
       <button class="tab" data-lvl="1">Bass Boost One</button>
       <button class="tab" data-lvl="2">Bass Boost Two</button>
     </div>
+    <div class="group-note" style="margin-top:0; margin-bottom:14px;">200 · 400 · 900 · 2k · 4kHz, low to high.</div>
     <div class="row">
       <span class="label">Bass</span>
       <input type="range" id="bassSlider" min="-20" max="24" step="0.5">
       <span class="readout mono" id="bassSliderVal">— dB</span>
+    </div>
+    <div class="row">
+      <span class="label">Low mid</span>
+      <input type="range" id="mid1Slider" min="-12" max="12" step="0.5">
+      <span class="readout mono" id="mid1SliderVal">— dB</span>
+    </div>
+    <div class="row">
+      <span class="label">Mid</span>
+      <input type="range" id="mid2Slider" min="-12" max="12" step="0.5">
+      <span class="readout mono" id="mid2SliderVal">— dB</span>
+    </div>
+    <div class="row">
+      <span class="label">High mid</span>
+      <input type="range" id="mid3Slider" min="-12" max="12" step="0.5">
+      <span class="readout mono" id="mid3SliderVal">— dB</span>
     </div>
     <div class="row">
       <span class="label">Treble</span>
@@ -326,8 +342,8 @@
   let device = null, server = null, controlChar = null, stateChar = null, logChar = null;
   let latestState = null;
   let activeEqTab = 1; // which preset's sliders are currently shown
-  let dragging = { bass:false, treble:false, vol12:false, vol24:false, stvol:false };
-  let lastWrite = { bass:0, treble:0, vol12:0, vol24:0, stvol:0 };
+  let dragging = { bass:false, treble:false, mid1:false, mid2:false, mid3:false, vol12:false, vol24:false, stvol:false };
+  let lastWrite = { bass:0, treble:0, mid1:0, mid2:0, mid3:0, vol12:0, vol24:0, stvol:0 };
   let logBatch = { total:0, entries:[] };
 
   const $ = (id) => document.getElementById(id);
@@ -535,7 +551,13 @@
 
     // EQ sliders for the active tuning tab, unless the person is mid-drag
     const bKey = ["b0b","b1b","b2b"][activeEqTab], tKey = ["b0t","b1t","b2t"][activeEqTab];
+    const m1Key = ["b0m1","b1m1","b2m1"][activeEqTab];
+    const m2Key = ["b0m2","b1m2","b2m2"][activeEqTab];
+    const m3Key = ["b0m3","b1m3","b2m3"][activeEqTab];
     if (!dragging.bass){ $("bassSlider").value = s[bKey]; $("bassSliderVal").textContent = s[bKey].toFixed(1) + " dB"; }
+    if (!dragging.mid1){ $("mid1Slider").value = s[m1Key]; $("mid1SliderVal").textContent = s[m1Key].toFixed(1) + " dB"; }
+    if (!dragging.mid2){ $("mid2Slider").value = s[m2Key]; $("mid2SliderVal").textContent = s[m2Key].toFixed(1) + " dB"; }
+    if (!dragging.mid3){ $("mid3Slider").value = s[m3Key]; $("mid3SliderVal").textContent = s[m3Key].toFixed(1) + " dB"; }
     if (!dragging.treble){ $("trebleSlider").value = s[tKey]; $("trebleSliderVal").textContent = s[tKey].toFixed(1) + " dB"; }
 
     // Ceilings
@@ -577,8 +599,15 @@
     });
     if (latestState){
       const bKey = ["b0b","b1b","b2b"][lvl], tKey = ["b0t","b1t","b2t"][lvl];
+      const m1Key = ["b0m1","b1m1","b2m1"][lvl], m2Key = ["b0m2","b1m2","b2m2"][lvl], m3Key = ["b0m3","b1m3","b2m3"][lvl];
       $("bassSlider").value = latestState[bKey];
       $("bassSliderVal").textContent = latestState[bKey].toFixed(1) + " dB";
+      $("mid1Slider").value = latestState[m1Key];
+      $("mid1SliderVal").textContent = latestState[m1Key].toFixed(1) + " dB";
+      $("mid2Slider").value = latestState[m2Key];
+      $("mid2SliderVal").textContent = latestState[m2Key].toFixed(1) + " dB";
+      $("mid3Slider").value = latestState[m3Key];
+      $("mid3SliderVal").textContent = latestState[m3Key].toFixed(1) + " dB";
       $("trebleSlider").value = latestState[tKey];
       $("trebleSliderVal").textContent = latestState[tKey].toFixed(1) + " dB";
     }
@@ -589,27 +618,26 @@
     if (btn) selectEqTab(Number(btn.dataset.lvl));
   });
 
-  $("bassSlider").addEventListener("input", ()=>{
-    dragging.bass = true;
-    const v = parseFloat($("bassSlider").value);
-    $("bassSliderVal").textContent = v.toFixed(1) + " dB";
-    throttled("bass", ()=> sendCommand(["b0b","b1b","b2b"][activeEqTab] + "=" + v));
-  });
-  $("bassSlider").addEventListener("change", ()=>{
-    dragging.bass = false;
-    sendCommand(["b0b","b1b","b2b"][activeEqTab] + "=" + $("bassSlider").value);
-  });
-
-  $("trebleSlider").addEventListener("input", ()=>{
-    dragging.treble = true;
-    const v = parseFloat($("trebleSlider").value);
-    $("trebleSliderVal").textContent = v.toFixed(1) + " dB";
-    throttled("treble", ()=> sendCommand(["b0t","b1t","b2t"][activeEqTab] + "=" + v));
-  });
-  $("trebleSlider").addEventListener("change", ()=>{
-    dragging.treble = false;
-    sendCommand(["b0t","b1t","b2t"][activeEqTab] + "=" + $("trebleSlider").value);
-  });
+  // One helper wires up any EQ band slider: live-updates its readout while
+  // dragging (throttled writes), and sends a final write on release. keys[]
+  // is the BLE key for [preset0, preset1, preset2] - activeEqTab picks which.
+  function wireEqBandSlider(sliderId, valId, dragKey, keys){
+    $(sliderId).addEventListener("input", ()=>{
+      dragging[dragKey] = true;
+      const v = parseFloat($(sliderId).value);
+      $(valId).textContent = v.toFixed(1) + " dB";
+      throttled(dragKey, ()=> sendCommand(keys[activeEqTab] + "=" + v));
+    });
+    $(sliderId).addEventListener("change", ()=>{
+      dragging[dragKey] = false;
+      sendCommand(keys[activeEqTab] + "=" + $(sliderId).value);
+    });
+  }
+  wireEqBandSlider("bassSlider",  "bassSliderVal",  "bass",  ["b0b","b1b","b2b"]);
+  wireEqBandSlider("mid1Slider",  "mid1SliderVal",  "mid1",  ["b0m1","b1m1","b2m1"]);
+  wireEqBandSlider("mid2Slider",  "mid2SliderVal",  "mid2",  ["b0m2","b1m2","b2m2"]);
+  wireEqBandSlider("mid3Slider",  "mid3SliderVal",  "mid3",  ["b0m3","b1m3","b2m3"]);
+  wireEqBandSlider("trebleSlider","trebleSliderVal","treble",["b0t","b1t","b2t"]);
 
   // ---- Volume ceilings ----
   $("vol12Slider").addEventListener("input", ()=>{
