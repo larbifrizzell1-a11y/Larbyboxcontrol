@@ -67,6 +67,7 @@
   button.danger{ border-color:#4a2e2a; color:#e79a92; }
   button.danger:hover:not(:disabled){ border-color: var(--red); }
   button.small{ padding:6px 12px; font-size:11px; }
+  button.small.active{ border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
 
   .status-msg{ font-size:12px; color: var(--ink-dim); margin-top:12px; min-height:16px; }
   .status-msg.err{ color: var(--red); }
@@ -209,6 +210,26 @@
     <div class="group-note">Applies immediately, and becomes the boot-up default. Hit "Save to flash" below to keep it after a power cycle, or leave unsaved to revert next boot.</div>
   </div>
 
+  <div class="group" id="ledSection" style="display:none;">
+    <div class="group-tag"><span class="dot cyan"></span><span class="name">LED</span></div>
+    <div class="row">
+      <span class="label">Preset</span>
+      <div class="radio-group" id="ledPresetGroup" style="flex:1;">
+        <button data-pre="0">Breathe</button>
+        <button data-pre="1">Sparkle</button>
+        <button data-pre="2">Two-Tone</button>
+        <button data-pre="3">Bass Pulse</button>
+        <button data-pre="4">Energy Hue</button>
+        <button data-pre="5">Rainbow</button>
+      </div>
+    </div>
+    <div class="row">
+      <span class="label">Brightness</span>
+      <button class="small" id="ledBriBtn">—</button>
+    </div>
+    <div class="group-note">Live only — not saved to flash and not part of the boot-up defaults. Also mirrors Encoder 2 (rotate = preset, click = brightness).</div>
+  </div>
+
   <div class="group" id="btSection" style="display:none;">
     <div class="group-tag"><span class="dot cyan"></span><span class="name">Signal</span></div>
     <div class="actions">
@@ -319,7 +340,8 @@
   </div>
 
   <div class="footnote">
-    Talks to the always-on BLE service on LarbyBox-Control firmware v1.1+ (service <span class="mono">6e400001…</span>).
+    Talks to the always-on BLE service on LarbyBox-Control firmware v1.2+ (service <span class="mono">6e400001…</span>).
+    LED preset/brightness controls need v1.2+; on older firmware they'll show but writes will be ignored.
     Web Bluetooth needs a secure context — this page works over <span class="mono">https://</span> or
     <span class="mono">http://localhost</span>, but not a plain double-clicked file. On a phone, use Chrome for Android;
     Safari/iOS doesn't support Web Bluetooth at all.
@@ -337,6 +359,7 @@
   const LOG_UUID     = "6e400004-b5a3-f393-e0a9-e50e24dcca9e";
 
   const BASS_NAMES = ["Default", "Bass Boost One", "Bass Boost Two"];
+  const LED_PRESET_NAMES = ["Breathe", "Sparkle", "Two-Tone Swap", "Bass Pulse", "Energy Hue", "Rainbow Blocks"];
   const WRITE_THROTTLE_MS = 130;
 
   let device = null, server = null, controlChar = null, stateChar = null, logChar = null;
@@ -362,7 +385,7 @@
   }
 
   function setSectionsVisible(v){
-    ["controlsSection","powerSection","eqSection","ceilingSection","startupSection","btSection","logSection"]
+    ["controlsSection","ledSection","powerSection","eqSection","ceilingSection","startupSection","btSection","logSection"]
       .forEach(id => $(id).style.display = v ? "" : "none");
   }
 
@@ -560,6 +583,16 @@
     if (!dragging.mid3){ $("mid3Slider").value = s[m3Key]; $("mid3SliderVal").textContent = s[m3Key].toFixed(1) + " dB"; }
     if (!dragging.treble){ $("trebleSlider").value = s[tKey]; $("trebleSliderVal").textContent = s[tKey].toFixed(1) + " dB"; }
 
+    // LED preset / brightness — live state only, mirrors the physical
+    // encoder, so always reflect what the firmware reports (no drag-guard
+    // needed since these are single-tap buttons, not sliders).
+    document.querySelectorAll("#ledPresetGroup button").forEach(b=>{
+      b.classList.toggle("active", Number(b.dataset.pre) === s.ledPre);
+    });
+    const briBtn = $("ledBriBtn");
+    briBtn.textContent = s.ledBri ? "On" : "Off";
+    briBtn.classList.toggle("active", !!s.ledBri);
+
     // Ceilings
     if (!dragging.vol12){ $("vol12Slider").value = s.vol12; $("vol12Val").textContent = s.vol12; }
     if (!dragging.vol24){ $("vol24Slider").value = s.vol24; $("vol24Val").textContent = s.vol24; }
@@ -674,6 +707,17 @@
     if (!btn) return;
     sendCommand("stbass=" + btn.dataset.lvl);
     selectEqTab(Number(btn.dataset.lvl)); // keep the tuning sliders below pointed at the now-active preset
+  });
+
+  // ---- LED preset + brightness ----
+  $("ledPresetGroup").addEventListener("click", (e)=>{
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    sendCommand("ledpre=" + btn.dataset.pre);
+  });
+  $("ledBriBtn").addEventListener("click", ()=>{
+    const currentlyOn = latestState ? !!latestState.ledBri : true;
+    sendCommand("ledbri=" + (currentlyOn ? 0 : 1));
   });
 
   $("saveBtn").addEventListener("click", ()=> sendCommand("save=1"));
